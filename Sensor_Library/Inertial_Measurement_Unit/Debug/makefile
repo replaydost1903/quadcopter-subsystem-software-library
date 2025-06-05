@@ -9,9 +9,8 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
--include bmp388/bmp388_selftest/Src/subdir.mk
--include bmp388/bmp388_port/Src/subdir.mk
--include bmp388/Src/subdir.mk
+-include bmi160/bmi160_port/Src/subdir.mk
+-include bmi160/Src/subdir.mk
 -include USB_DEVICE/Target/subdir.mk
 -include USB_DEVICE/App/subdir.mk
 -include Middlewares/ST/STM32_USB_Device_Library/Core/Src/subdir.mk
@@ -41,34 +40,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := BMP388
+BUILD_ARTIFACT_NAME := Inertial_Measurement_Unit_BMI160
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-BMP388.elf \
+Inertial_Measurement_Unit_BMI160.elf \
 
 MAP_FILES += \
-BMP388.map \
+Inertial_Measurement_Unit_BMI160.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-BMP388.list \
+Inertial_Measurement_Unit_BMI160.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: BMP388.elf secondary-outputs
+main-build: Inertial_Measurement_Unit_BMI160.elf secondary-outputs
 
 # Tool invocations
-BMP388.elf BMP388.map: $(OBJS) $(USER_OBJS) C:\Users\Kubilay\STM32CubeIDE\workspace_1.18.1\BMP388\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "BMP388.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Kubilay\STM32CubeIDE\workspace_1.18.1\BMP388\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="BMP388.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
+Inertial_Measurement_Unit_BMI160.elf Inertial_Measurement_Unit_BMI160.map: $(OBJS) $(USER_OBJS) C:\Users\Kubilay\STM32CubeIDE\workspace_1.18.1\Inertial_Measurement_Unit_BMI160\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Inertial_Measurement_Unit_BMI160.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Kubilay\STM32CubeIDE\workspace_1.18.1\Inertial_Measurement_Unit_BMI160\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Inertial_Measurement_Unit_BMI160.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -77,14 +76,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-BMP388.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "BMP388.list"
+Inertial_Measurement_Unit_BMI160.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "Inertial_Measurement_Unit_BMI160.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) BMP388.elf BMP388.list BMP388.map default.size.stdout
+	-$(RM) Inertial_Measurement_Unit_BMI160.elf Inertial_Measurement_Unit_BMI160.list Inertial_Measurement_Unit_BMI160.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

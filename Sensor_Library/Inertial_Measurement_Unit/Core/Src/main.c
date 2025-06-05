@@ -22,12 +22,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usbd_cdc_if.h"
 #include <string.h>
 #include <stdio.h>
-#include "bmp3.h"
-#include "bmp3_selftest.h"
-#include "bmp388_port.h"
-#include "usbd_cdc_if.h"
+#include "bmi160_port.h"
+#include "bmi160.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,7 +36,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define DEGREES_TO_RADIAN		(( double )((M_PI / 180.0f)))
+#define RADIAN_TO_DEGREES		(( double )((180.0f / M_PI)))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,8 +51,8 @@ I2C_HandleTypeDef hi2c1;
 TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
-struct bmp3_dev bmp388 = {0};														/*! 	@brief variable to hold the bmp388 main data 		*/
-struct bmp388_interface bmp388_intf = {&htim6,&hi2c1,BMP388_DEV_ADDR};				/*! 	@brief variable to hold the bmp388 interface 		*/
+struct bmi160_dev bmi160 = {0};													/*! 	@brief variable to hold the bmi160 main data 		*/
+char usb_msg[100U]={0U};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,85 +66,62 @@ static void MX_TIM6_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t bmp388_calib_flag = 0U , bmp388_press_calib_flag = 0U , bmp388_altitude_calib_flag = 0U;
-char usb_msg[50]={0};
+volatile union bmi160_int_status int_stat = {0};
+volatile uint8_t calib_flag = 0U;
+const uint32_t iter_num = 2000U;
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if( GPIO_Pin == BMP388_INT_Pin )
+	if( GPIO_Pin == BMI160_INT1_Pin )
 	{
-		/*!< BMP388 Calibration Process >!*/
-		if ( !bmp388_calib_flag )
+		memset((void*)int_stat.data,0x00,sizeof(int_stat.data));
+
+		bmi160_get_int_status(BMI160_INT_STATUS_1, (void*)&int_stat, &bmi160);
+
+		if( int_stat.bit.drdy )
 		{
-			const uint32_t iter_num = 3000U;
-			static uint32_t alt_index , pre_index = 0U;
-			static double calibration_data = 0.0f;
-
-			/*!< Pressure(p) and Reference Altitude (h0) Calibration >!*/
-
-			if ( get_bmp388_sensor_data(&bmp388) != BMP3_OK )
+			//Calibration Procedure
+			if ( calib_flag )
 			{
-				  printf("BMP388 sensor get data failure !\n");
-				  Error_Handler();
-			}
+				static uint32_t index = 0U;
 
-			/*!< Ground Pressure(p0) Calibration >!*/
-			if( !bmp388_press_calib_flag )
-			{
-				calibration_data += bmp388.pressure_data.pressure;
-
-				if ( pre_index++ == iter_num )
+				if( bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL),&bmi160.accel_data,&bmi160.gyro_data,&bmi160) != BMI160_OK)
 				{
-					pre_index = 0U;
+				  printf("BMI160 sensor data failed !\n");
+				  Error_Handler();
+				}
 
-					bmp388_press_calib_flag = 1U;
+				bmi160.accel_data.x_offset += (double)bmi160.accel_data.x;
+				bmi160.accel_data.y_offset += (double)bmi160.accel_data.y;
+				bmi160.accel_data.z_offset += (double)bmi160.accel_data.z;
 
-					calibration_data /= (double)iter_num;
+				bmi160.gyro_data.x_offset  += (double)bmi160.gyro_data.x;
+				bmi160.gyro_data.y_offset  += (double)bmi160.gyro_data.y;
+				bmi160.gyro_data.z_offset  += (double)bmi160.gyro_data.z;
 
-					HAL_GPIO_WritePin(ORANGE_LED_GPIO_Port, ORANGE_LED_Pin, 1U);
+				if ( index++ == iter_num-1)
+				{
+					/*<! 3-axis accelerometer calibration result offset value  <!*/
+					bmi160.accel_data.x_offset = (((bmi160.accel_data.x_offset / (double)iter_num))/ACCEL_SENSITIVITY);
+					bmi160.accel_data.y_offset = (((bmi160.accel_data.y_offset / (double)iter_num))/ACCEL_SENSITIVITY);
+					bmi160.accel_data.z_offset = ((((bmi160.accel_data.z_offset / (double)iter_num))/ACCEL_SENSITIVITY)-1.0f);
 
-					printf("The Presssure Calibration completed\n");
+					/*<! 3-axis gyroscope calibration result offset value  <!*/
+					bmi160.gyro_data.x_offset = ((bmi160.gyro_data.x_offset / (double)iter_num))/GYRO_SENSITIVITY;
+					bmi160.gyro_data.y_offset = ((bmi160.gyro_data.y_offset / (double)iter_num))/GYRO_SENSITIVITY;
+					bmi160.gyro_data.z_offset = ((bmi160.gyro_data.z_offset / (double)iter_num))/GYRO_SENSITIVITY;
+
+					// Calibration completed
+					calib_flag = 0U;
 				}
 			}
-
-			/*!< Reference Altitude (h0) Calibration >!*/
-			if( ( bmp388_press_calib_flag ) && ( !bmp388_altitude_calib_flag ) )
+			else
 			{
-				bmp388.pressure_data.ground_pressure = calibration_data;
-
-				bmp388.pressure_data.relative_offset += -((bmp388.pressure_data.pressure-bmp388.pressure_data.ground_pressure) \
-																		/ (DENSITY_AIR_KG_M3 * GRAVITY_AIR_KG_MPS2));
-
-				if ( alt_index++ == iter_num )
+				if( bmi160_get_acc_gyro(&bmi160) != BMI160_OK)
 				{
-					alt_index = 0U;
-
-					bmp388_altitude_calib_flag = 1U;
-
-					bmp388_calib_flag = 1U;
-
-					bmp388.pressure_data.relative_offset /= (double)iter_num;
-
-					HAL_GPIO_WritePin(BLUE_LED_GPIO_Port, BLUE_LED_Pin, 1U);
-
-					printf("The Altitude Calibration completed\n");
+				  printf("BMI160 sensor data failed !\n");
+				  Error_Handler();
 				}
 			}
-
-		}
-		else	/*!< Get Calibrated Altitude Process >!*/
-		{
-			if ( get_bmp388_sensor_data(&bmp388) != BMP3_OK )
-			{
-				  printf("BMP388 sensor get data failure !\n");
-				  Error_Handler();
-			}
-
-		    if ( bmp388_get_altitude(&bmp388) != BMP3_OK )
-		    {
-			    printf("BMP388 isnt get data !\n");
-			    Error_Handler();
-		    }
-
 		}
 	}
 }
@@ -180,14 +157,18 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
-  MX_TIM6_Init();
   MX_USB_DEVICE_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
-  if(bmp388_interface_init(&bmp388, &bmp388_intf) != BMP3_OK)
+  /* BMI160 Init */
+  if(bmi160_interface_init(&bmi160) != BMI160_OK)
   {
-	  Error_Handler();
+	 Error_Handler();
   }
+
+  /* Start Calibration */
+  calib_flag = 1U;
 
   /* USER CODE END 2 */
 
@@ -223,8 +204,8 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 336;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 168;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -263,7 +244,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 400000;
+  hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -299,9 +280,9 @@ static void MX_TIM6_Init(void)
 
   /* USER CODE END TIM6_Init 1 */
   htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 1;
+  htim6.Init.Prescaler = 0;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 83;
+  htim6.Init.Period = 41999;
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
@@ -332,14 +313,20 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GREEN_LED_Pin|ORANGE_LED_Pin|RED_LED_Pin|BLUE_LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : BMI160_INT1_Pin */
+  GPIO_InitStruct.Pin = BMI160_INT1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(BMI160_INT1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : GREEN_LED_Pin ORANGE_LED_Pin RED_LED_Pin BLUE_LED_Pin */
   GPIO_InitStruct.Pin = GREEN_LED_Pin|ORANGE_LED_Pin|RED_LED_Pin|BLUE_LED_Pin;
@@ -348,15 +335,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BMP388_INT_Pin */
-  GPIO_InitStruct.Pin = BMP388_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(BMP388_INT_GPIO_Port, &GPIO_InitStruct);
-
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

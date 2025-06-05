@@ -101,7 +101,7 @@ BMP3_INTF_RET_TYPE bmp388_interface_init(struct bmp3_dev *bmp388,struct bmp388_i
 	 *		- RMS NOISE[cm]								- 11
 	 */
 
-	settings.odr_filter.iir_filter 		= 	BMP3_IIR_FILTER_COEFF_31;
+	settings.odr_filter.iir_filter 		= 	BMP3_IIR_FILTER_COEFF_3;
 	settings.odr_filter.press_os 		= 	BMP3_OVERSAMPLING_8X;
 	settings.odr_filter.temp_os 		= 	BMP3_NO_OVERSAMPLING;
 	settings.odr_filter.odr 			= 	BMP3_ODR_50_HZ;

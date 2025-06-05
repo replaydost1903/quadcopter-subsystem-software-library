@@ -164,10 +164,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  	    sprintf(usb_msg,"%f,%f,%f,%f\r\n",hmc5883l.mag_data.mx,hmc5883l.mag_data.my,hmc5883l.mag_data.mz,\
-  	    		heading);
-  	    CDC_Transmit_FS((uint8_t*)usb_msg,strlen(usb_msg));
-  	    HAL_Delay(20);
   }
   /* USER CODE END 3 */
 }
